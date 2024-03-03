@@ -1,19 +1,38 @@
-Server.default.options.numInputBusChannels_(5);
+/*
+SERPENS CAUDA, for double bass and electronics
+by Nuno Trocado
+https://nunotrocado.com
+
+Commissioned by Arte no Tempo. March 2024.
+
+----------------------------------------------
+*/
+
 
 (
-~input = 4;
+// Set the input channel. 0 (the default) corresponds to the first input on the audio interface.
+~input = 0;
 
-Server.default.options.device_("ASIO");
-// Server.default.options.blockSize_(32);
+// On MS Windows it's probably a good idea to use ASIO drivers - in that case uncomment the following line.
+// Server.default.options.device_("ASIO");
+
+// Increased memSize maybe needed for the larger fft buffers.
 Server.default.options.memSize_(2**20);
+
 
 s.waitForBoot({
 
 	b = Buffer.alloc(s, 4 * s.sampleRate);
 	~fast_buf = Buffer.alloc(s, 0.01 * s.sampleRate);
 
+	~fft_buf1 = Buffer.alloc(s, 2**17);
+	~fft_buf2 = Buffer.alloc(s, 2**15);
+	~fft_buf3 = Buffer.alloc(s, 2**8);
+
+
 	SynthDef(\rec,{RecordBuf.ar(SoundIn.ar(~input), b)}).play;
 	SynthDef(\recFast, {RecordBuf.ar(SoundIn.ar(~input), ~fast_buf)}).play;
+
 
 	SynthDef(\grains, {
 		arg amp = 0.4;
@@ -46,11 +65,8 @@ s.waitForBoot({
 
 	// ~grains.stop;
 
-	~fft_buf1 = Buffer.alloc(s, 2**17);
-	~fft_buf2 = Buffer.alloc(s, 2**15);
-	~fft_buf3 = Buffer.alloc(s, 2**8);
 
-	h = SynthDef(\magNoise, {
+	~mag = SynthDef(\magNoise, {
 		var source, chain, sig, amp;
 		source = PlayBuf.ar(1, b,
 			[ Demand.kr(Dust.kr(0.15), 0, Dseq([1, 0.5, -1, -0.5], inf)),
@@ -65,9 +81,7 @@ s.waitForBoot({
 		Out.ar(0, sig * amp);
 	}).play;
 
-
-	// h.free;
-
+	// ~mag.free;
 
 
 	SynthDef(\magNoiseFast, {
@@ -86,15 +100,12 @@ s.waitForBoot({
 		Out.ar(0, sig * env * amp);
 	}).add;
 
-
-
 	~magNoiseFast = {
 		loop {
 			rrand(9, 18).wait;
 			Synth(\magNoiseFast);
 		}
 	}.fork;
-
 
 	// ~magNoiseFast.stop;
 
@@ -110,11 +121,9 @@ s.waitForBoot({
 		rangeMin = LFPulse.kr([0.8, 1.3]).range([0.5, 1], [2, 3]);
 		rangeMax = LFPulse.kr([0.2, 0.6]).range(3.9, 4.1);
 		mod = SinOscFB.ar(freq*LFPulse.kr(LFNoise1.kr([0.7, 1.1]).range(0.3, 1.2)).range(rangeMin, rangeMax));
-
 		car = SinOscFB.ar(freq + mod, (LFNoise1.kr(LFNoise1.kr([0.4, 0.23, 0.69], 0.5, 0.8)).range(0.2*pi, 0.9*pi)));
 		sig = RLPF.ar(car, LFNoise0.kr(LinLin.kr(control, dstlo:0.2)).range(400, 2000));
 		sig = sig * Amplitude.kr(in, 0.01, 0.9) * 1.5;
-		//sig = sig * Lag.kr(hasFreq, 0.1);
 		sig = FreeVerb.ar(sig, mix:0.7);
 		sig = Splay.ar(sig, LFNoise1.kr(1).range(0.1, 1));
 		env = EnvGen.kr(
@@ -134,7 +143,6 @@ s.waitForBoot({
 		}
 	}.fork;
 
-
 	// ~feedbackFM.stop;
 
 
@@ -143,7 +151,7 @@ s.waitForBoot({
 		var sig, env, amp;
 		sig = BLowPass4.ar(SinOsc.ar([freq, freq * 1.03]), Rand(350, 1800), [1, 0.7]);
 		env = Env.perc(0.001, 1, curve:-4).kr(Done.freeSelf);
-		amp = Amplitude.ar(PlayBuf.ar(1, b, loop:1), 0.01, 0.7) * 1.3;
+		amp = 1.3 * Amplitude.ar(PlayBuf.ar(1, b, loop:1), 0.01, 0.7);
 		Out.ar(0, sig * env * amp);
 	}).add;
 
@@ -177,7 +185,6 @@ s.waitForBoot({
 		}
 	}.fork;
 
-
 	// f.stop;
 
 
@@ -199,7 +206,6 @@ s.waitForBoot({
 		}
 	}.fork;
 
-
 	// ~tremNoise.free;
 
 
@@ -215,7 +221,6 @@ s.waitForBoot({
 		Out.ar(0, LeakDC.ar(sig * env * amp));
 	}).add;
 
-
 	~waves = {
 		loop {
 			rrand(11, 22).wait;
@@ -230,7 +235,6 @@ s.waitForBoot({
 			});
 		}
 	}.fork;
-
 
 	// ~waves.free;
 
