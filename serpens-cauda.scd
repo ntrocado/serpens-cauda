@@ -228,15 +228,12 @@ s.waitForBoot({
 				arg x;
 				if (x.top.abs > 0.001, {
 					Synth(\waves)
-				},{
-					"waves: buffer silent".postln;
-					x.postln;
 				})
 			});
 		}
 	}.fork;
 
-	// ~waves.free;
+	// ~waves.stop;
 
 });
 )
